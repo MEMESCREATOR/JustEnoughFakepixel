@@ -42,8 +42,8 @@ public class StorageRenderer extends Gui {
 
     static {
         for (int i = 0; i < STYLE_COUNT; i++) {
-            STYLE_BG_TEXTURES[i]   = new ResourceLocation("justenoughfakepixel", "textures/gui/storage/style" + i + "_bg.png");
-            STYLE_SLOT_TEXTURES[i] = new ResourceLocation("justenoughfakepixel", "textures/gui/storage/style" + i + "_slot.png");
+            STYLE_BG_TEXTURES[i]   = new ResourceLocation("justenoughfakepixel", "textures/gui/containers/style" + i + "_bg.png");
+            STYLE_SLOT_TEXTURES[i] = new ResourceLocation("justenoughfakepixel", "textures/gui/containers/style" + i + "_slot.png");
         }
     }
 

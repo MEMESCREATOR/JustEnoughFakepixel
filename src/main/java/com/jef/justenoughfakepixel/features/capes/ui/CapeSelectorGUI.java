@@ -19,7 +19,7 @@ public class CapeSelectorGUI extends GuiScreen {
     public List<CapeDisplay> capes = new ArrayList<>();
 
     private static final ResourceLocation CONTAINER_BG =
-            new ResourceLocation("justenoughfakepixel", "textures/gui/storage_container_bg.png");
+            new ResourceLocation("justenoughfakepixel", "textures/gui/capesUI.png");
 
     private float scrollOffset = 0f;
     private float scrollVelocity = 0f;

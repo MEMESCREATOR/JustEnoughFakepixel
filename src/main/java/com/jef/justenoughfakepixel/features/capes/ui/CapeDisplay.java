@@ -21,7 +21,7 @@ public class CapeDisplay {
     private final ModelRenderer capeModel;
 
     private static final ResourceLocation SLOT_BG =
-            new ResourceLocation("justenoughfakepixel", "textures/gui/storage_container_bg.png");
+            new ResourceLocation("justenoughfakepixel", "textures/gui/capesUI.png");
 
     public CapeDisplay(Cape cape) {
         this.capeID = cape.id;
