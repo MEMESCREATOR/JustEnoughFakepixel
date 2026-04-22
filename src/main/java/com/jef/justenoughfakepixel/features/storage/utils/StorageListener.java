@@ -220,8 +220,19 @@ public class StorageListener {
         if (Minecraft.getMinecraft().currentScreen != null) return;
 
         ScaledResolution sr = new ScaledResolution(Minecraft.getMinecraft());
-        int mouseX = Mouse.getX() * sr.getScaledWidth() / Minecraft.getMinecraft().displayWidth;
-        int mouseY = sr.getScaledHeight() - Mouse.getY() * sr.getScaledHeight() / Minecraft.getMinecraft().displayHeight - 1;
+        int width = sr.getScaledWidth();
+        int height = sr.getScaledHeight();
+
+        // Keep the background dim during container switch so the screen never flashes un-dimmed
+        net.minecraft.client.renderer.GlStateManager.disableLighting();
+        net.minecraft.client.renderer.GlStateManager.disableFog();
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        com.jef.justenoughfakepixel.core.config.utils.RenderUtils.drawGradientRect(0, 0, 0, width, height, -1072689136, -804253680);
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+
+        int mouseX = Mouse.getX() * width / Minecraft.getMinecraft().displayWidth;
+        int mouseY = height - Mouse.getY() * height / Minecraft.getMinecraft().displayHeight - 1;
         StorageManager.renderOverlay(mouseX, mouseY);
     }
 

@@ -19,4 +19,9 @@ public class Storage {
     @ConfigOption(name = "Overlay Style", desc = "Choose the visual style of the storage overlay panels and slots")
     @ConfigEditorDropdown(values = {"Default", "Dark", "Wooden", "Ender", "Parchment"})
     public int overlayStyle = 0;
+
+    @Expose
+    @ConfigOption(name = "Active Container Highlight", desc = "How inactive backpacks are visually de-emphasised when one is selected")
+    @ConfigEditorDropdown(values = {"Dim", "Classic"})
+    public int activeContainerStyle = 0;
 }

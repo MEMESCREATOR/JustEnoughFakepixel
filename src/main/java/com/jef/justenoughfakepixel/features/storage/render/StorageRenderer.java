@@ -230,11 +230,30 @@ public class StorageRenderer extends Gui {
         GL11.glScissor((boxX + inset) * scaleFactor, (Minecraft.getMinecraft().displayHeight - scissorScreenBottom * scaleFactor), (boxW - inset * 2) * scaleFactor, (scissorScreenBottom - scissorScreenTop) * scaleFactor);
 
         String activeId = StorageManager.getActiveContainerId();
+        boolean dimMode = JefConfig.feature.storage.activeContainerStyle == 0 && activeId != null;
 
+        // Pass 1 – draw all containers
         for (SContainer container : containers.values()) {
             if (!containerMatchesSearch(container)) continue;
             boolean isActive = container.id.equals(activeId);
             drawContainer(mouseX, mouseY, container, fr, isActive);
+        }
+
+        // Pass 2 (dim mode only) – draw a dark overlay over every inactive container
+        if (dimMode) {
+            GlStateManager.enableBlend();
+            GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+            GlStateManager.disableTexture2D();
+            for (SContainer container : containers.values()) {
+                if (!containerMatchesSearch(container)) continue;
+                if (container.id.equals(activeId)) continue;
+                ContainerRenderInfo info = calculateContainerRenderInfo(container);
+                if (!info.isVisible) continue;
+                // Slightly dim inactive containers — only the panel area, not the whole screen
+                drawRect(info.x, info.y, info.x + info.width, info.y + info.height, 0x55000000);
+            }
+            GlStateManager.enableTexture2D();
+            GlStateManager.disableBlend();
         }
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
@@ -510,10 +529,20 @@ public class StorageRenderer extends Gui {
         GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
         GlStateManager.disableLighting();
 
+        boolean dimMode = JefConfig.feature.storage.activeContainerStyle == 0
+                && StorageManager.getActiveContainerId() != null;
         if (isActive) {
-            GlStateManager.color(1.2f, 1.2f, 0.8f, 1f);
-        } else if (hovering) {
+            // In dim mode use a stronger warm highlight so the active one really pops
+            if (dimMode) {
+                GlStateManager.color(1.4f, 1.4f, 0.7f, 1f);
+            } else {
+                GlStateManager.color(1.2f, 1.2f, 0.8f, 1f);
+            }
+        } else if (hovering && !dimMode) {
             GlStateManager.color(1.3f, 1.3f, 1.3f, 1f);
+        } else if (hovering) {
+            // In dim mode still show hover on inactive but keep it subtle
+            GlStateManager.color(1.1f, 1.1f, 1.1f, 1f);
         }
 
         NineSliceUtils.draw(getContainerBg(), info.x, info.y, info.width, info.height, NINE_SLICE_CORNER, NINE_SLICE_SIZE);
@@ -529,7 +558,15 @@ public class StorageRenderer extends Gui {
         String baseTitle = container.type == Type.ECHEST ? "§6Ender Chest " + container.page : "§aBackpack " + container.page;
 
         if (isActive) {
-            baseTitle = "§e§l» §r" + baseTitle + " §e§l«";
+            boolean dimMode = JefConfig.feature.storage.activeContainerStyle == 0
+                    && StorageManager.getActiveContainerId() != null;
+            if (!dimMode) {
+                // Classic mode keeps the » « arrows
+                baseTitle = "§e§l» §r" + baseTitle + " §e§l«";
+            } else {
+                // Dim mode: just bold the title, arrows are redundant with the visual dim
+                baseTitle = "§e§l" + baseTitle;
+            }
         }
 
         if (container.locked) {

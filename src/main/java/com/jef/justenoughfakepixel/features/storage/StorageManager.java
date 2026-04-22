@@ -4,6 +4,7 @@ import com.jef.justenoughfakepixel.features.storage.data.StorageData;
 import com.jef.justenoughfakepixel.features.storage.render.StorageRenderer;
 import com.jef.justenoughfakepixel.features.storage.utils.SContainer;
 import com.jef.justenoughfakepixel.features.storage.utils.StorageListener;
+import com.jef.justenoughfakepixel.core.JefConfig;
 import com.jef.justenoughfakepixel.features.storage.utils.StorageParser;
 import com.jef.justenoughfakepixel.init.RegisterEvents;
 import lombok.Getter;
@@ -36,9 +37,16 @@ public class StorageManager {
 
     private static void endTransition() {
         if (isTransitioning && !wasMouseLocked) {
-            com.jef.justenoughfakepixel.features.farming.mouse.LockMouse.setLocked(false);
+            setMouseLockedSilent(false);
         }
         isTransitioning = false;
+    }
+
+    /** Sets the mouse lock state without printing the "Mouse locked/unlocked" chat message. */
+    private static void setMouseLockedSilent(boolean locked) {
+        if (JefConfig.feature == null) return;
+        JefConfig.feature.farming.lockMouse = locked;
+        JefConfig.saveConfig();
     }
 
     public static boolean initializeOverlay(ContainerChest parser) {
@@ -116,7 +124,7 @@ public class StorageManager {
         transitionStartTime = System.currentTimeMillis();
         wasMouseLocked = com.jef.justenoughfakepixel.features.farming.mouse.LockMouse.isLocked();
         if (!wasMouseLocked) {
-            com.jef.justenoughfakepixel.features.farming.mouse.LockMouse.setLocked(true);
+            setMouseLockedSilent(true);
         }
 
         StorageListener.setSwitchingContainer(true);
@@ -161,7 +169,7 @@ public class StorageManager {
         renderer = null;
         overlayActive = false;
         if (isTransitioning && !wasMouseLocked) {
-            com.jef.justenoughfakepixel.features.farming.mouse.LockMouse.setLocked(false);
+            setMouseLockedSilent(false);
         }
         isTransitioning = false;
     }
