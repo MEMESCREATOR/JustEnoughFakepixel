@@ -152,8 +152,21 @@ public class StorageListener {
     private boolean handleScrollInput() {
         int dWheel = Mouse.getEventDWheel();
         if (dWheel != 0) {
-            StorageManager.handleMouseInput();
-            return true;
+            // Don't scroll overlay if shift is held (for item moving)
+            if (org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) ||
+                    org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT)) {
+                return false;
+            }
+
+            // Only scroll if mouse is over the storage overlay area
+            GuiChest guiChest = (GuiChest) Minecraft.getMinecraft().currentScreen;
+            int mouseX = Mouse.getX() * guiChest.width / Minecraft.getMinecraft().displayWidth;
+            int mouseY = guiChest.height - Mouse.getY() * guiChest.height / Minecraft.getMinecraft().displayHeight - 1;
+
+            if (StorageManager.isMouseOverStorageArea(mouseX, mouseY)) {
+                StorageManager.handleMouseInput();
+                return true;
+            }
         }
         return false;
     }

@@ -58,10 +58,10 @@ public class SearchBar {
 
     public static GuiTextField createStorageSearchBar(int x, int y, int width) {
         storageSearchBar = new GuiTextField(1, MC.fontRendererObj, x, y, width, BAR_HEIGHT);
-        storageSearchBar.setCanLoseFocus(false);
+        storageSearchBar.setCanLoseFocus(true);
         storageSearchBar.setMaxStringLength(50);
         storageSearchBar.setEnableBackgroundDrawing(false);
-        storageSearchBar.setFocused(true);
+        storageSearchBar.setFocused(false);
         storageSearchBar.setText(storageSearchText);
         return storageSearchBar;
     }
@@ -73,7 +73,7 @@ public class SearchBar {
     }
 
     public static boolean handleStorageKeyTyped(GuiTextField field, char typedChar, int keyCode) {
-        if (field == null) return false;
+        if (field == null || !field.isFocused()) return false;
         boolean consumed = field.textboxKeyTyped(typedChar, keyCode);
         storageSearchText = field.getText();
         return consumed;
@@ -81,8 +81,16 @@ public class SearchBar {
 
     public static boolean handleStorageMouseClick(GuiTextField field, int mouseX, int mouseY) {
         if (field == null) return false;
-        field.mouseClicked(mouseX, mouseY, 0);
-        return mouseX >= field.xPosition && mouseX <= field.xPosition + field.width && mouseY >= field.yPosition && mouseY <= field.yPosition + field.height;
+
+        boolean inside = mouseX >= field.xPosition && mouseX <= field.xPosition + field.width &&
+                mouseY >= field.yPosition && mouseY <= field.yPosition + field.height;
+
+        field.setFocused(inside);
+        if (inside) {
+            field.mouseClicked(mouseX, mouseY, 0);
+        }
+
+        return inside;
     }
 
     private static boolean isEnabled() {
@@ -147,12 +155,15 @@ public class SearchBar {
 
         Gui.drawRect(x, y, x + BAR_WIDTH, y + BAR_HEIGHT, 0xFF2C2C2C);
         Gui.drawRect(x + 1, y + 1, x + BAR_WIDTH - 1, y + BAR_HEIGHT - 1, 0xFF111111);
-        MC.fontRendererObj.drawStringWithShadow("Search...", x + 5, y + BAR_HEIGHT / 2 - 4, 0x8F8F8F);
+        MC.fontRendererObj.drawStringWithShadow("Search...", x + 5, y + (float) BAR_HEIGHT / 2 - 4, 0x8F8F8F);
     }
 
     @SubscribeEvent
     public void onGuiInit(GuiScreenEvent.InitGuiEvent.Post event) {
         if (!isEnabled() || !isSupportedGui(event.gui)) return;
+
+        // Enable keyboard repeat for text field
+        Keyboard.enableRepeatEvents(true);
 
         int w = BAR_WIDTH, h = BAR_HEIGHT;
 
@@ -175,10 +186,16 @@ public class SearchBar {
     public void onKeyboardInput(GuiScreenEvent.KeyboardInputEvent.Pre event) {
         if (!isEnabled() || !(event.gui instanceof GuiContainer)) return;
         if (searchBar == null || !searchBar.isFocused()) return;
-        if (!Keyboard.getEventKeyState()) return;
-        if (Keyboard.getEventKey() == Keyboard.KEY_ESCAPE) return;
 
-        if (searchBar.textboxKeyTyped(Keyboard.getEventCharacter(), Keyboard.getEventKey())) {
+        // Only process key press and repeat events, not release
+        if (!Keyboard.getEventKeyState()) return;
+
+        char typedChar = Keyboard.getEventCharacter();
+        int keyCode = Keyboard.getEventKey();
+
+        if (keyCode == Keyboard.KEY_ESCAPE) return;
+
+        if (searchBar.textboxKeyTyped(typedChar, keyCode)) {
             searchText = searchBar.getText();
             event.setCanceled(true);
         }
@@ -206,6 +223,7 @@ public class SearchBar {
             return;
         }
 
+        searchBar.updateCursorCounter();
         drawSearchBar(searchBar, searchBar.getText());
     }
 

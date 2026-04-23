@@ -9,6 +9,7 @@ import com.jef.justenoughfakepixel.features.storage.utils.Type;
 import com.jef.justenoughfakepixel.utils.render.ItemRenderUtils;
 import com.jef.justenoughfakepixel.utils.render.NineSliceUtils;
 import com.jef.justenoughfakepixel.utils.render.ResolutionUtils;
+import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -24,14 +25,14 @@ import java.util.LinkedHashMap;
 public class StorageRenderer extends Gui {
 
     private static final int PADDING = 5;
-    private static final int ROW_SPACING = 8;
+    private static final int ROW_SPACING = 16; // Increased from 8 to 16 (added 8px)
     private static final int INVENTORY_HEIGHT = 76;
     private static final float SCROLL_LENGTH = 0.2f;
     private static final int SEARCH_BAR_WIDTH = 200;
     private static final int SEARCH_BAR_HEIGHT = 20;
     private static final int NINE_SLICE_CORNER = 6;
     private static final int NINE_SLICE_SIZE = 18;
-    private static final int SLOT_SIZE = 16;
+    private static final int SLOT_SIZE = 18;
     private static final int SLOTS_PER_ROW = 9;
 
     /** Number of bundled overlay styles. Indices 0..STYLE_COUNT-1 map to textures/gui/storage/styleN_*.png */
@@ -69,9 +70,14 @@ public class StorageRenderer extends Gui {
     private float scrollOffset;
     private float scrollTarget;
     private float scrollSpeed;
+    @Getter
     private ItemStack hoveredItem;
     private int hoveredX = -1;
     private int hoveredY = -1;
+    private boolean hoveredItemIsFromInventory = false;
+    private boolean isDraggingScrollbar = false;
+    private int dragStartY = 0;
+    private float dragStartScroll = 0;
     private GuiTextField searchField;
     private String searchText = "";
     private String lastSearchText = "";
@@ -84,6 +90,10 @@ public class StorageRenderer extends Gui {
         this.scrollSpeed = JefConfig.feature.storage.scrollSpeed;
         initLayout();
         initSearchBar();
+    }
+
+    public boolean isHoveredItemFromInventory() {
+        return hoveredItemIsFromInventory;
     }
 
     private void drawBackground() {
@@ -194,7 +204,7 @@ public class StorageRenderer extends Gui {
         int rows = (int) Math.ceil(container.slotCount / 9.0);
         int titleHeight = 18;
         int bottomPadding = 4;
-        int height = titleHeight + (rows * 16) + bottomPadding;
+        int height = titleHeight + (rows * 18) + bottomPadding + 8; // Changed from 16 to 18 for slot size, added 8px
 
         containerHeightCache.put(cacheKey, height);
         return height;
@@ -209,11 +219,26 @@ public class StorageRenderer extends Gui {
         hoveredX = -1;
         hoveredY = -1;
 
+        // Update scrollbar drag state
+        handleScrollbarDrag(mouseX, mouseY, org.lwjgl.input.Mouse.isButtonDown(0));
+
         FontRenderer fr = Minecraft.getMinecraft().fontRendererObj;
 
         if (searchField != null) {
             searchField.updateCursorCounter();
         }
+
+        // Update search text and clear caches if changed
+        String newSearchText = SearchBar.getStorageSearchText().toLowerCase();
+        if (!newSearchText.equals(lastSearchText)) {
+            searchCache.clear();
+            rowHeightCache.clear();
+            containerHeightCache.clear();
+            cachedVisibleCount = -1;
+            cachedMaxScroll = -1;
+            lastSearchText = newSearchText;
+        }
+        searchText = newSearchText;
 
         SearchBar.drawStorageSearchBar(searchField);
 
@@ -258,6 +283,7 @@ public class StorageRenderer extends Gui {
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
 
+        renderScrollbar();
         renderPlayerInventory(mouseX, mouseY);
 
         if (hoveredItem != null) {
@@ -265,7 +291,7 @@ public class StorageRenderer extends Gui {
         }
     }
 
-    private void renderSlot(int x, int y, ItemStack stack, boolean matchesSearch, int mouseX, int mouseY) {
+    private void renderSlot(int x, int y, ItemStack stack, boolean matchesSearch, int mouseX, int mouseY, boolean isFromInventory) {
         Minecraft.getMinecraft().getTextureManager().bindTexture(getSlotTexture());
         GlStateManager.color(matchesSearch && !searchText.isEmpty() ? 0.5f : 1f, 1.0f, 1f, 1f);
         drawModalRectWithCustomSizedTexture(x, y, 0, 0, SLOT_SIZE, SLOT_SIZE, SLOT_SIZE, SLOT_SIZE);
@@ -278,6 +304,7 @@ public class StorageRenderer extends Gui {
                 hoveredItem = stack;
                 hoveredX = mouseX;
                 hoveredY = mouseY;
+                hoveredItemIsFromInventory = isFromInventory;
             }
             drawSlotHighlight(x, y);
         }
@@ -315,11 +342,82 @@ public class StorageRenderer extends Gui {
 
     private void renderInventorySlots(ItemStack[] playerItems, int mouseX, int mouseY) {
         for (int i = 0; i < 27; i++) {
-            renderSlot(inventoryX + (i % 9) * 18, inventoryY + (i / 9) * 18, playerItems[i + 9], false, mouseX, mouseY);
+            renderSlot(inventoryX + (i % 9) * 18, inventoryY + (i / 9) * 18, playerItems[i + 9], false, mouseX, mouseY, true);
         }
 
         for (int i = 0; i < 9; i++) {
-            renderSlot(inventoryX + i * 18, inventoryY + 58, playerItems[i], false, mouseX, mouseY);
+            renderSlot(inventoryX + i * 18, inventoryY + 58, playerItems[i], false, mouseX, mouseY, true);
+        }
+    }
+
+    private void renderScrollbar() {
+        int maxScroll = getMaxScroll();
+        if (maxScroll <= 0) return; // No scrollbar if content fits
+
+        int scrollbarWidth = 4;
+        int scrollbarX = boxX + boxW - NINE_SLICE_CORNER - scrollbarWidth + 2; // Moved more to the right for centering
+        int scrollbarTrackY = boxY + NINE_SLICE_CORNER + 2;
+        int scrollbarTrackHeight = storageAreaH - NINE_SLICE_CORNER * 2 - 4;
+
+        // Draw scrollbar track (darker background)
+        drawRect(scrollbarX, scrollbarTrackY, scrollbarX + scrollbarWidth, scrollbarTrackY + scrollbarTrackHeight, 0x80000000);
+
+        // Calculate scrollbar thumb size and position
+        int visibleHeight = storageAreaH - NINE_SLICE_CORNER * 2;
+        int totalHeight = visibleHeight + maxScroll;
+        float thumbHeightRatio = (float) visibleHeight / totalHeight;
+        int thumbHeight = Math.max(20, (int) (scrollbarTrackHeight * thumbHeightRatio));
+
+        float scrollRatio = scrollOffset / maxScroll;
+        int thumbY = scrollbarTrackY + (int) ((scrollbarTrackHeight - thumbHeight) * scrollRatio);
+
+        // Draw scrollbar thumb (lighter color)
+        drawRect(scrollbarX, thumbY, scrollbarX + scrollbarWidth, thumbY + thumbHeight, 0xFFAAAAAA);
+    }
+
+    public boolean isMouseOverScrollbar(int mouseX, int mouseY) {
+        int maxScroll = getMaxScroll();
+        if (maxScroll <= 0) return false;
+
+        int scrollbarWidth = 4;
+        int scrollbarX = boxX + boxW - NINE_SLICE_CORNER - scrollbarWidth + 2;
+        int scrollbarTrackY = boxY + NINE_SLICE_CORNER + 2;
+        int scrollbarTrackHeight = storageAreaH - NINE_SLICE_CORNER * 2 - 4;
+
+        return mouseX >= scrollbarX && mouseX <= scrollbarX + scrollbarWidth &&
+                mouseY >= scrollbarTrackY && mouseY <= scrollbarTrackY + scrollbarTrackHeight;
+    }
+
+    public void handleScrollbarDrag(int mouseX, int mouseY, boolean isPressed) {
+        int maxScroll = getMaxScroll();
+        if (maxScroll <= 0) return;
+
+        if (isPressed && !isDraggingScrollbar && isMouseOverScrollbar(mouseX, mouseY)) {
+            // Start dragging
+            isDraggingScrollbar = true;
+            dragStartY = mouseY;
+            dragStartScroll = scrollOffset;
+        } else if (!isPressed) {
+            // Stop dragging
+            isDraggingScrollbar = false;
+        }
+
+        if (isDraggingScrollbar) {
+            int scrollbarTrackY = boxY + NINE_SLICE_CORNER + 2;
+            int scrollbarTrackHeight = storageAreaH - NINE_SLICE_CORNER * 2 - 4;
+
+            int visibleHeight = storageAreaH - NINE_SLICE_CORNER * 2;
+            int totalHeight = visibleHeight + maxScroll;
+            float thumbHeightRatio = (float) visibleHeight / totalHeight;
+            int thumbHeight = Math.max(20, (int) (scrollbarTrackHeight * thumbHeightRatio));
+
+            // Calculate scroll based on mouse position
+            int deltaY = mouseY - dragStartY;
+            float scrollableTrackHeight = scrollbarTrackHeight - thumbHeight;
+            float scrollDelta = (deltaY / scrollableTrackHeight) * maxScroll;
+
+            scrollTarget = Math.max(0, Math.min(maxScroll, dragStartScroll + scrollDelta));
+            scrollOffset = scrollTarget; 
         }
     }
 
@@ -333,16 +431,6 @@ public class StorageRenderer extends Gui {
     }
 
     private int getMaxScroll() {
-        String newSearchText = SearchBar.getStorageSearchText().toLowerCase();
-        if (!newSearchText.equals(lastSearchText)) {
-            searchCache.clear();
-            rowHeightCache.clear();
-            cachedVisibleCount = -1;
-            cachedMaxScroll = -1;
-            lastSearchText = newSearchText;
-        }
-        searchText = newSearchText;
-
         if (cachedMaxScroll != -1) {
             return cachedMaxScroll;
         }
@@ -363,7 +451,16 @@ public class StorageRenderer extends Gui {
         return cachedMaxScroll;
     }
 
+    public boolean isMouseOverStorageArea(int mouseX, int mouseY) {
+        return mouseX >= boxX && mouseX <= boxX + boxW && mouseY >= boxY && mouseY <= boxY + boxH;
+    }
+
     public boolean handleClick(int mouseX, int mouseY) {
+        // Don't handle container clicks if clicking on scrollbar
+        if (isMouseOverScrollbar(mouseX, mouseY)) {
+            return true;
+        }
+
         if (SearchBar.handleStorageMouseClick(searchField, mouseX, mouseY)) {
             return true;
         }
@@ -390,9 +487,17 @@ public class StorageRenderer extends Gui {
             int rw = containerW;
             int rh = getContainerDisplayHeight(container);
 
-            if (isHovering(mouseX, mouseY, xStart, yStart, rw, rh)) {
-                handleContainerClick(container);
-                return true;
+            // Check if container is visible within the storage area bounds
+            int inset = NINE_SLICE_CORNER;
+            int visibleTop = boxY + inset;
+            int visibleBottom = boxY + storageAreaH - inset;
+
+            // Only handle click if container is at least partially visible
+            if (yStart + rh >= visibleTop && yStart <= visibleBottom) {
+                if (isHovering(mouseX, mouseY, xStart, yStart, rw, rh)) {
+                    handleContainerClick(container);
+                    return true;
+                }
             }
 
             index++;
@@ -583,7 +688,7 @@ public class StorageRenderer extends Gui {
     private void drawContainerSlots(SContainer container, ContainerRenderInfo info, int mouseX, int mouseY) {
         int gridWidth = SLOT_SIZE * SLOTS_PER_ROW;
         int startX = info.x + (info.width - gridWidth) / 2;
-        int startY = info.y + 16;
+        int startY = info.y + 18; // Match title height
 
         GlStateManager.enableBlend();
         GlStateManager.color(1f, 1f, 1f, 1f);
@@ -595,7 +700,7 @@ public class StorageRenderer extends Gui {
             int xPos = startX + (col * SLOT_SIZE);
             int yPos = startY + (row * SLOT_SIZE);
             ItemStack stack = container.getStack(i);
-            renderSlot(xPos, yPos, stack, itemMatchesSearch(stack), mouseX, mouseY);
+            renderSlot(xPos, yPos, stack, itemMatchesSearch(stack), mouseX, mouseY, false);
         }
 
         GlStateManager.color(1f, 1f, 1f, 1f);
@@ -686,7 +791,7 @@ public class StorageRenderer extends Gui {
     private boolean checkActiveContainerSlotHover(net.minecraft.inventory.Slot slot, int mouseX, int mouseY, ContainerPosition pos) {
         int gridWidth = SLOT_SIZE * SLOTS_PER_ROW;
         int startX = pos.x + (containerW - gridWidth) / 2;
-        int startY = pos.y + 16;
+        int startY = pos.y + 18;
 
         int slotIndex = slot.getSlotIndex();
         int storageSlotIndex = slotIndex - 9;

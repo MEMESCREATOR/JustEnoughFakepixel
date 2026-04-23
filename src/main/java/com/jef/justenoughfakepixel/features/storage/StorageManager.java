@@ -90,6 +90,11 @@ public class StorageManager {
     }
 
 
+    public static boolean isMouseOverStorageArea(int mouseX, int mouseY) {
+        if (renderer == null) return false;
+        return renderer.isMouseOverStorageArea(mouseX, mouseY);
+    }
+
     public static void handleMouseInput() {
         if (renderer == null) return;
 

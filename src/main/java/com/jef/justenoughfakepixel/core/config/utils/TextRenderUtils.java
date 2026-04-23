@@ -31,6 +31,8 @@ public final class TextRenderUtils {
     }
 
     public static void drawHoveringText(List<String> textLines, int mouseX, int mouseY, int screenWidth, int screenHeight, int maxTextWidth, FontRenderer font) {
+        mouseY += com.jef.justenoughfakepixel.features.misc.ScrollableTooltips.scrollOffset;
+
         if (textLines.isEmpty()) {
             GlStateManager.disableLighting();
             return;
