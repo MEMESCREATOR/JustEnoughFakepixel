@@ -6,6 +6,7 @@
 - Added Mode-Wide capes (/Capes)
 - Added Player tags
 - Added Professor and Scarf splits
+- Added Carpentry to Skill Xp Display
 --------------
 - Changed Hardstone in Powder tracker to Enchanted
 - Improved Dungeon Overlay to have less dupe timers (toggleable)
